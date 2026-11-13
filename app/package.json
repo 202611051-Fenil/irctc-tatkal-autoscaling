@@ -1,0 +1,8 @@
+{
+  "name": "tatkal-poc",
+  "version": "1.0.0",
+  "description": "Tiny stateless API for the IT457 IRCTC Tatkal autoscaling PoC",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "license": "MIT"
+}
