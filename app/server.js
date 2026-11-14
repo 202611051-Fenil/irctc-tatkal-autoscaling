@@ -30,14 +30,19 @@ if (cluster.isPrimary) {
 
     if (req.url === '/book') {
       // Fake CPU work: stands in for captcha / payment / seat validation.
+      // Async version runs on the libuv thread pool, so the main thread stays
+      // free and /health always answers, even when the CPU is saturated.
       const t0 = Date.now();
-      crypto.pbkdf2Sync('seat-validation', 'salt', WORK_ITERATIONS, 64, 'sha512');
-      return send(res, 200, {
-        status: 'Booking Confirmed',
-        pnr: Math.floor(1e9 + Math.random() * 9e9),
-        server: HOST_NAME,
-        work_ms: Date.now() - t0,
+      crypto.pbkdf2('seat-validation', 'salt', WORK_ITERATIONS, 64, 'sha512', (err) => {
+        if (err) return send(res, 500, { error: 'work failed' });
+        send(res, 200, {
+          status: 'Booking Confirmed',
+          pnr: Math.floor(1e9 + Math.random() * 9e9),
+          server: HOST_NAME,
+          work_ms: Date.now() - t0,
+        });
       });
+      return;
     }
 
     send(res, 404, { error: 'not found' });
