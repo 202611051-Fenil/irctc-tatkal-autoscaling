@@ -1,0 +1,8 @@
+Peak load = 60 users in every row (k6 stages: 1m calm, 30s ramp, then peak)
+
+Baseline: 1 fixed server                   3777 req |   8.6 req/s | median  6.72s | p95  7.25s
+Autoscaled: 1 server (before scaling)      2606 req |   8.9 req/s | median  6.62s | p95  7.20s
+Autoscaled: 2 servers                      2461 req |  17.8 req/s | median  1.30s | p95  6.12s
+Autoscaled: 3 servers                      4296 req |  25.6 req/s | median  1.73s | p95  5.07s
+
+2nd server in service 7.1 min after test start, 3rd at 10.0 min.

@@ -5,6 +5,8 @@ Reads the k6 CSV files and draws:
        response time (p50, p95) and throughput vs number of servers over time
   2. results/baseline_vs_autoscale.png
        the same test with 1 fixed server vs with autoscaling, side by side
+  3. results/phase_stats.txt
+       fair comparison table: same 60-user load, 1 vs 2 vs 3 servers
 
 Run from the repo folder:
   pip install matplotlib
@@ -28,6 +30,7 @@ AUTOSCALE_CSV = "results/k6_autoscale.csv"
 BASELINE_CSV = "results/run2_baseline_1server.csv"
 OUT_MAIN = "results/autoscale_response_vs_instances.png"
 OUT_COMPARE = "results/baseline_vs_autoscale.png"
+OUT_PHASES = "results/phase_stats.txt"
 BIN_SECONDS = 30
 
 # From tatkal-asg > Activity (all UTC, 2026-11-14).
@@ -107,6 +110,36 @@ def summary(label, ts, dur):
           f"avg {len(dur) / (ts.max() - ts.min()):.1f} req/s")
 
 
+def window_stats(label, ts, dur, start, a, b):
+    """Stats for requests between a and b seconds after the test start."""
+    m = (ts - start >= a) & (ts - start < b)
+    d = dur[m]
+    if len(d) == 0:
+        return f"{label:<40} (no data)"
+    return (f"{label:<40} {len(d):>6} req | {len(d) / (b - a):5.1f} req/s | "
+            f"median {np.median(d):5.2f}s | p95 {np.percentile(d, 95):5.2f}s")
+
+
+def write_phase_stats(ts, dur, start, bts, bdur, bstart):
+    """Compare the 60-user peak fairly: same load, different server counts."""
+    t2 = event_unix("14:45:34") - start       # 2nd server in service
+    t3 = event_unix("14:48:32") - start       # 3rd server in service
+    peak_end = 90 + 12 * 60                   # 1m + 30s ramp, then 12 min peak
+    lines = ["Peak load = 60 users in every row (k6 stages: 1m calm, 30s ramp, then peak)", ""]
+    if bts is not None:
+        lines.append(window_stats("Baseline: 1 fixed server", bts, bdur, bstart, 120, 560))
+    lines.append(window_stats("Autoscaled: 1 server (before scaling)", ts, dur, start, 120, t2 - 10))
+    lines.append(window_stats("Autoscaled: 2 servers", ts, dur, start, t2 + 30, t3 - 10))
+    lines.append(window_stats("Autoscaled: 3 servers", ts, dur, start, t3 + 30, peak_end - 10))
+    lines += ["", f"2nd server in service {t2 / 60:.1f} min after test start, "
+                  f"3rd at {t3 / 60:.1f} min."]
+    text = "\n".join(lines)
+    print(text)
+    with open(OUT_PHASES, "w") as f:
+        f.write(text + "\n")
+    print("saved", OUT_PHASES)
+
+
 def main():
     for p in (AUTOSCALE_CSV,):
         if not os.path.exists(p):
@@ -125,7 +158,7 @@ def main():
     ax1.plot(to_dt(xs), p50, color="tab:green", label="Median response time")
     ax1.plot(to_dt(xs), p95, color="tab:red", label="p95 response time")
     ax1.set_ylabel("Response time (seconds)")
-    ax1.set_title("Tatkal load test: response time vs number of servers (k6 -> ALB)", pad=34)
+    fig.suptitle("Tatkal load test: response time vs number of servers (k6 -> ALB)", y=0.995)
     ax1.grid(alpha=0.3)
 
     ax1b = ax1.twinx()
@@ -139,20 +172,21 @@ def main():
     ax1b.set_yticks([0, 1, 2, 3, 4])
     h1, l1 = ax1.get_legend_handles_labels()
     h2, l2 = ax1b.get_legend_handles_labels()
-    ax1.legend(h1 + h2, l1 + l2, loc="lower center", bbox_to_anchor=(0.5, 1.08), ncol=4, fontsize=9)
+    fig.legend(h1 + h2, l1 + l2, loc="upper center", bbox_to_anchor=(0.5, 0.965), ncol=4, fontsize=9)
 
     ax2.plot(to_dt(xs), rps, color="tab:purple")
     ax2.set_ylabel("Requests per second")
     ax2.set_xlabel("Time (UTC)")
     ax2.grid(alpha=0.3)
     ax2.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
-    plt.tight_layout()
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
     plt.savefig(OUT_MAIN, dpi=150)
     plt.close()
     print("saved", OUT_MAIN)
     summary("Autoscaled", ts, dur)
 
     # ---------- Figure 2: baseline vs autoscale ----------
+    bts = bdur = bstart = None
     if os.path.exists(BASELINE_CSV):
         bts, bdur = load_k6(BASELINE_CSV)
         bstart = bts.min()
@@ -179,6 +213,8 @@ def main():
         summary("Baseline ", bts, bdur)
     else:
         print(f"Baseline file {BASELINE_CSV} not found, skipped comparison graph.")
+
+    write_phase_stats(ts, dur, start, bts, bdur, bstart)
 
 
 if __name__ == "__main__":
