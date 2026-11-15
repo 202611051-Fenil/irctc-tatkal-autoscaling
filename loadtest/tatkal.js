@@ -12,7 +12,7 @@ export const options = {
   stages: [
     { duration: '1m',  target: 10 },  // normal traffic before 10:00
     { duration: '30s', target: 60 },  // 10:00 AM - sudden spike
-    { duration: '8m',  target: 60 },  // sustained peak (scale-out happens here)
+    { duration: '12m', target: 60 },  // sustained peak (scale-out happens here)
     { duration: '1m',  target: 10 },  // rush is over
     { duration: '3m',  target: 10 },  // watch the load drop
   ],
