@@ -24,8 +24,13 @@ if (cluster.isPrimary) {
   http.createServer((req, res) => {
     if (req.url === '/health') return send(res, 200, { ok: true });
 
-    if (req.url === '/tatkal') {
-      return send(res, 200, { status: 'Tatkal Ticket Available', server: HOST_NAME });
+    // Home page: so opening the bare load balancer URL shows a useful answer.
+    if (req.url === '/' || req.url === '/tatkal') {
+      return send(res, 200, {
+        status: 'Tatkal Ticket Available',
+        server: HOST_NAME,
+        endpoints: ['/tatkal', '/book', '/health'],
+      });
     }
 
     if (req.url === '/book') {
