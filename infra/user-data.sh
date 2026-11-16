@@ -4,7 +4,7 @@
 # so it builds and starts the app with zero manual work.
 set -euxo pipefail
 
-REPO_URL="https://github.com/<your-username>/<your-repo>.git"   # <-- CHANGE THIS (repo must be public)
+REPO_URL="https://github.com/202611051-Fenil/irctc-tatkal-autoscaling.git"   # public repo
 
 dnf install -y docker git
 systemctl enable --now docker

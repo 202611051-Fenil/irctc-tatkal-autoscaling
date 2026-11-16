@@ -6,7 +6,7 @@ Tatkal-style traffic spikes, and scales back in when it drops.
 ## Architecture
 ```
 k6 (separate machine) -> Application Load Balancer (/health checks)
-                              -> Auto Scaling Group (min 1, max 4, 2 AZs)
+                              -> Auto Scaling Group (min 1, max 3, 2 AZs)
                                    EC2 t3.micro running Docker app
 CloudWatch: avg CPU > 50% -> add instance (target tracking)
 ```
@@ -37,7 +37,7 @@ Follow `infra/aws-setup.md`.
 
 ## Load test
 ```
-k6 run -e BASE_URL=http://<ALB-DNS> --out csv=results/k6_autoscale.csv loadtest/tatkal.js
+k6 run -e BASE_URL=http://<ALB-DNS> -e RUN_NAME=k6_autoscale --out csv=results/k6_autoscale.csv loadtest/tatkal.js
 ```
 Run it from your laptop or a separate VM, never from the app servers.
 
@@ -45,7 +45,7 @@ Run it from your laptop or a separate VM, never from the app servers.
 ```
 pip install boto3 matplotlib
 python loadtest/plot_results.py --asg tatkal-asg --alb app/tatkal-alb/<id> \
-    --start <UTC start> --end <UTC end> --out results/autoscale.png
+    --region us-east-1 --start <UTC start> --end <UTC end> --out results/autoscale.png
 ```
 
 ## Baseline comparison (recommended)

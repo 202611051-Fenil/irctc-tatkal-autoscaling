@@ -26,8 +26,7 @@ CloudWatch alarms (created by the cpu50 policy): average CPU > 50% -> add server
 
 ## 3. Target group `tatkal-tg`
 - Target type Instances, HTTP 80, health check path `/health`
-- Health check settings after the first load test: healthy threshold 2, unhealthy threshold 5, timeout 10 s, interval 15 s
-  (check these against the console before submitting)
+- Health check settings (confirmed in the console on 2026-11-16): healthy threshold 2, unhealthy threshold 2, timeout 5 s, interval 10 s, success code 200
 
 ## 4. Load balancer `tatkal-alb`
 - Internet-facing, zones us-east-1a and us-east-1b, security group `alb-sg`
@@ -56,7 +55,26 @@ Stages: 1 min at 10 users, 30 s ramp to 60 users, 12 min at 60 users, 1 min down
 | 15:11:30 | Low-CPU alarm fired, 3 -> 2 |
 | 15:12:30 | 2 -> 1 |
 
-Run files in `results/`: `run1_before_fix` (failed run), `run2_baseline_1server` (no scaling), `k6_autoscale` (autoscaled run), plus graphs.
+### Run 4: pre-warmed (2026-11-15, UTC)
+Scheduled action `prewarm` (10:18:08) set min 3, max 5, desired 3, so 3 servers were running before the test.
+k6 ran 15:14:22 to 15:31:52 (30,371 requests, 0 non-200 responses).
+
+| Time | Event |
+|---|---|
+| 15:19:17 | Alarm fired, desired capacity 3 -> 5 |
+| 15:21:30 | 4th and 5th servers in service (7.2 min after test start) |
+| 15:44:33 | Low-CPU alarm, 5 -> 4 |
+| 15:46:53 | 4 -> 3 (stops at 3 because min is 3) |
+
+| Window | Requests/s | Median | p95 |
+|---|---|---|---|
+| 3 servers, peak, before scale-out | 25.6 | 1.77 s | 4.88 s |
+| 5 servers, peak | 41.3 | 0.56 s | 4.30 s |
+
+Even 3 servers could not hold CPU at 50% under 60 users: average CPU reached about 100% and the group asked for 5.
+Console check: the target group shows no 5xx data over the last day.
+
+Run files in `results/`: `run1_before_fix` (failed run), `run2_baseline_1server` (no scaling), `k6_autoscale` (autoscaled run), `run4_prewarmed` (pre-warmed run), plus graphs.
 
 ## 8. Problems we hit and fixes
 1. Launch template had a placeholder repo URL: servers never started the app. Fixed with template version 2.

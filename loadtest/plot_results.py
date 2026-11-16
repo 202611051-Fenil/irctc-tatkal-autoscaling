@@ -24,7 +24,7 @@ p.add_argument("--asg", required=True)
 p.add_argument("--alb", required=True)
 p.add_argument("--start", required=True)
 p.add_argument("--end", required=True)
-p.add_argument("--region", default="ap-south-1")
+p.add_argument("--region", default="us-east-1")
 p.add_argument("--out", default="results/autoscale.png")
 a = p.parse_args()
 

@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 .env
 *.pem
+
+# Big raw k6 CSVs (over 50 MB) - keep local, do not push
+results/run4_prewarmed.csv

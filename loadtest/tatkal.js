@@ -1,11 +1,14 @@
 // k6 load test shaped like a Tatkal opening: calm -> sudden spike -> hold -> drop.
 // Run:
-//   k6 run -e BASE_URL=http://<ALB-DNS> --out csv=results/k6_autoscale.csv loadtest/tatkal.js
+//   k6 run -e BASE_URL=http://<ALB-DNS> -e RUN_NAME=k6_autoscale --out csv=results/k6_autoscale.csv loadtest/tatkal.js
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { textSummary } from 'https://jslib.k6.io/k6-summary/0.0.2/index.js';
 
 const BASE = __ENV.BASE_URL;
+// Name of the summary file. Change it per run so runs never overwrite each other:
+//   k6 run -e BASE_URL=... -e RUN_NAME=run4_prewarmed --out csv=results/run4_prewarmed.csv loadtest/tatkal.js
+const RUN_NAME = __ENV.RUN_NAME || 'k6_run';
 
 export const options = {
   dns: { policy: 'preferIPv6' },     // fixes connection timeouts on IPv6 networks
@@ -32,6 +35,6 @@ export default function () {
 export function handleSummary(data) {
   return {
     stdout: textSummary(data, { indent: ' ', enableColors: false }),
-    'results/k6_summary.json': JSON.stringify(data, null, 2),
+    [`results/${RUN_NAME}_summary.json`]: JSON.stringify(data, null, 2),
   };
 }
