@@ -3,9 +3,14 @@ const http = require('http');
 const crypto = require('crypto');
 const cluster = require('cluster');
 const os = require('os');
+const fs = require('fs');
+const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 const HOST_NAME = process.env.HOST_NAME || os.hostname();
+// Set by infra/user-data.sh from the EC2 metadata service (shown on the dashboard).
+const AZ = process.env.AZ || 'unknown';
+const INSTANCE_ID = process.env.INSTANCE_ID || 'unknown';
 // Higher = more CPU per /book call. Tune so one call takes ~60-100 ms.
 const WORK_ITERATIONS = parseInt(process.env.WORK_ITERATIONS || '100000', 10);
 
@@ -21,15 +26,32 @@ if (cluster.isPrimary) {
     res.end(JSON.stringify(body));
   };
 
+  // Dashboard page (read once per worker). Served from the same address as the API,
+  // so the browser can call /whoami and /book without any cross-site problems.
+  let dashboardHtml = '<h1>dashboard.html not found</h1>';
+  try { dashboardHtml = fs.readFileSync(path.join(__dirname, 'dashboard.html'), 'utf8'); } catch (e) {}
+
+  // Who am I? Used by the dashboard to see which server and zone answered.
+  const who = () => ({ server: HOST_NAME, instance_id: INSTANCE_ID, az: AZ, pid: process.pid });
+
   http.createServer((req, res) => {
     if (req.url === '/health') return send(res, 200, { ok: true });
+
+    if (req.url === '/dashboard') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      return res.end(dashboardHtml);
+    }
+
+    if (req.url.startsWith('/whoami')) {
+      return send(res, 200, { ...who(), uptime_s: Math.round(process.uptime()), time: Date.now() });
+    }
 
     // Home page: so opening the bare load balancer URL shows a useful answer.
     if (req.url === '/' || req.url === '/tatkal') {
       return send(res, 200, {
         status: 'Tatkal Ticket Available',
-        server: HOST_NAME,
-        endpoints: ['/tatkal', '/book', '/health'],
+        ...who(),
+        endpoints: ['/tatkal', '/book', '/health', '/whoami', '/dashboard'],
       });
     }
 
@@ -43,7 +65,7 @@ if (cluster.isPrimary) {
         send(res, 200, {
           status: 'Booking Confirmed',
           pnr: Math.floor(1e9 + Math.random() * 9e9),
-          server: HOST_NAME,
+          ...who(),
           work_ms: Date.now() - t0,
         });
       });

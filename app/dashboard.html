@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tatkal live dashboard</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #1b1f24; --quiet: #5b6570; --line: #dde1e6;
+    --accent: #2563eb; --good: #15803d; --warn: #b45309; --bad: #b91c1c;
+    --za: #2563eb; --zb: #0f766e; --zc: #9333ea; --zu: #6b7280;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1216; --card: #171b21; --ink: #e8ebef; --quiet: #98a2ad; --line: #2a313a;
+      --accent: #60a5fa; --good: #4ade80; --warn: #fbbf24; --bad: #f87171;
+      --za: #60a5fa; --zb: #2dd4bf; --zc: #c084fc; --zu: #9ca3af;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--quiet); margin: 0 0 16px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+  button, select { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line);
+                   background: var(--card); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-bottom: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .card h2 { font-size: 13px; font-weight: 600; color: var(--quiet); margin: 0 0 6px; text-transform: uppercase; letter-spacing: .04em; }
+  .big { font-size: 30px; font-weight: 650; line-height: 1.1; }
+  .small { color: var(--quiet); font-size: 13px; }
+  .panel { margin-bottom: 16px; }
+  .panel > h2 { font-size: 16px; margin: 0 0 10px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th { font-size: 12px; color: var(--quiet); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .tablewrap { overflow-x: auto; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600;
+          border: 1px solid currentColor; }
+  .share { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; min-width: 80px; }
+  .share > i { display: block; height: 100%; }
+  .zonerow { display: grid; grid-template-columns: 90px 1fr 90px; gap: 10px; align-items: center; margin: 8px 0; }
+  .zonebar { height: 14px; border-radius: 7px; background: var(--line); overflow: hidden; }
+  .zonebar > i { display: block; height: 100%; }
+  .log { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+  .log div { padding: 3px 0; border-bottom: 1px dashed var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ok { color: var(--good); } .err { color: var(--bad); } .new { color: var(--warn); }
+  svg.spark { width: 100%; height: 70px; display: block; }
+  .two { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 820px) { .two { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tatkal live dashboard</h1>
+  <p class="sub" id="servedby">Checking which server sent this page...</p>
+
+  <div class="bar">
+    <button class="primary" id="toggle">Pause</button>
+    <button id="burst">Send 20 bookings (/book)</button>
+    <label class="small" for="speed">Probe every</label>
+    <select id="speed">
+      <option value="500">0.5 s</option>
+      <option value="1000" selected>1 s</option>
+      <option value="2000">2 s</option>
+    </select>
+    <button id="reset">Reset counters</button>
+  </div>
+
+  <div class="grid">
+    <div class="card"><h2>Servers answering</h2><div class="big" id="s-servers">0</div><div class="small" id="s-servers-sub">in the last 20 s</div></div>
+    <div class="card"><h2>Requests sent</h2><div class="big" id="s-reqs">0</div><div class="small" id="s-rate">0 per second</div></div>
+    <div class="card"><h2>Avg response</h2><div class="big" id="s-avg">-</div><div class="small">last 20 requests</div></div>
+    <div class="card"><h2>Errors</h2><div class="big" id="s-err">0</div><div class="small">failed or non-200</div></div>
+  </div>
+
+  <div class="two">
+    <section class="card panel">
+      <h2>Requests by zone</h2>
+      <div id="zones"></div>
+    </section>
+    <section class="card panel">
+      <h2>Response time (last 60 requests)</h2>
+      <svg class="spark" id="spark" viewBox="0 0 300 70" preserveAspectRatio="none" role="img" aria-label="Response time over the last 60 requests"></svg>
+      <div class="small" id="spark-note">waiting for data</div>
+    </section>
+  </div>
+
+  <section class="card panel">
+    <h2>Servers</h2>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Server</th><th>Zone</th><th class="num">Requests</th><th>Share</th><th class="num">Avg ms</th><th>Last seen</th></tr></thead>
+        <tbody id="servers"><tr><td colspan="6" class="small">No answers yet.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card panel">
+    <h2>Live request log</h2>
+    <div class="log" id="log"><div class="small">No requests yet.</div></div>
+  </section>
+
+  <p class="small">The dashboard calls <code>/whoami</code> (light) every probe and <code>/book</code> (CPU work) when you press the burst button.
+  Each answer says which EC2 server and zone handled it. Watch this page while the load test runs: new servers appear as scaling adds them.</p>
+</main>
+
+<script>
+(function () {
+  var servers = {};      // key -> {server, instance, az, n, totalMs, last, firstSeen, isNew}
+  var zones = {};        // az -> count
+  var log = [];          // newest first
+  var samples = [];      // response times
+  var total = 0, errors = 0, startedAt = Date.now();
+  var running = true, timer = null;
+  var palette = ['var(--za)', 'var(--zb)', 'var(--zc)', 'var(--zu)'];
+  var zoneColor = {};
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function colorFor(az) {
+    if (!zoneColor[az]) zoneColor[az] = az === 'unknown' ? 'var(--zu)' : palette[Object.keys(zoneColor).filter(function (k) { return k !== 'unknown'; }).length % 3];
+    return zoneColor[az];
+  }
+  function shortHost(h) { return String(h).split('.')[0]; }
+  function clock(t) { return new Date(t).toLocaleTimeString([], { hour12: false }); }
+
+  function record(path, ok, status, ms, data) {
+    total++;
+    if (!ok) errors++;
+    samples.push(ms); if (samples.length > 60) samples.shift();
+    var entry = { t: Date.now(), path: path, ok: ok, status: status, ms: ms, server: '-', az: '-', instance: '-' };
+    if (data && data.server) {
+      var key = data.instance_id && data.instance_id !== 'unknown' ? data.instance_id : data.server;
+      var s = servers[key];
+      if (!s) {
+        s = servers[key] = { server: data.server, instance: data.instance_id || '', az: data.az || 'unknown',
+                             n: 0, totalMs: 0, last: 0, firstSeen: Date.now(), isNew: (Date.now() - startedAt) > 15000 };
+      }
+      s.n++; s.totalMs += ms; s.last = Date.now();
+      zones[s.az] = (zones[s.az] || 0) + 1;
+      entry.server = data.server; entry.az = s.az; entry.instance = data.instance_id || '';
+      entry.isNew = s.n === 1 && s.isNew;
+    }
+    log.unshift(entry); if (log.length > 14) log.pop();
+    schedule();
+  }
+
+  function call(path) {
+    var t0 = performance.now();
+    return fetch(path, { cache: 'no-store' }).then(function (r) {
+      return r.json().then(function (d) { return { r: r, d: d }; }, function () { return { r: r, d: null }; });
+    }).then(function (x) {
+      record(path, x.r.ok, x.r.status, Math.round(performance.now() - t0), x.d);
+    }, function () {
+      record(path, false, 0, Math.round(performance.now() - t0), null);
+    });
+  }
+
+  function tick() { if (running) call('/whoami'); }
+  function startTimer() { clearInterval(timer); timer = setInterval(tick, parseInt($('speed').value, 10)); }
+
+  function burst() {
+    var left = 20, active = 0, btn = $('burst');
+    btn.disabled = true;
+    function next() {
+      while (active < 5 && left > 0) {
+        left--; active++;
+        call('/book').then(function () { active--; if (left === 0 && active === 0) btn.disabled = false; else next(); });
+      }
+    }
+    next();
+  }
+
+  var pending = false;
+  function schedule() { if (!pending) { pending = true; requestAnimationFrame(function () { pending = false; render(); }); } }
+
+  function render() {
+    var now = Date.now();
+    var keys = Object.keys(servers);
+    var active = keys.filter(function (k) { return now - servers[k].last < 20000; }).length;
+    $('s-servers').textContent = active;
+    $('s-servers-sub').textContent = keys.length + ' seen since start';
+    $('s-reqs').textContent = total;
+    $('s-rate').textContent = (total / Math.max(1, (now - startedAt) / 1000)).toFixed(1) + ' per second';
+    var recent = samples.slice(-20);
+    $('s-avg').textContent = recent.length ? Math.round(recent.reduce(function (a, b) { return a + b; }, 0) / recent.length) + ' ms' : '-';
+    $('s-err').textContent = errors;
+
+    // zones
+    var zk = Object.keys(zones).sort(), zt = zk.reduce(function (a, k) { return a + zones[k]; }, 0);
+    $('zones').innerHTML = zk.length ? zk.map(function (z) {
+      var pct = zt ? Math.round(zones[z] * 100 / zt) : 0;
+      return '<div class="zonerow"><strong>' + esc(z) + '</strong><div class="zonebar"><i style="width:' + pct + '%;background:' + colorFor(z) + '"></i></div><span class="small">' + zones[z] + ' (' + pct + '%)</span></div>';
+    }).join('') : '<div class="small">No answers yet.</div>';
+
+    // servers table
+    if (keys.length) {
+      keys.sort(function (a, b) { return servers[b].n - servers[a].n; });
+      $('servers').innerHTML = keys.map(function (k) {
+        var s = servers[k], pct = total ? Math.round(s.n * 100 / total) : 0, age = Math.round((now - s.last) / 1000);
+        var seen = age > 20 ? '<span class="err">not seen for ' + age + ' s</span>' : '<span class="ok">' + age + ' s ago</span>';
+        var badge = s.isNew ? ' <span class="pill new">joined later</span>' : '';
+        return '<tr><td><strong>' + esc(shortHost(s.server)) + '</strong>' + badge + '<div class="small">' + esc(s.instance) + '</div></td>' +
+          '<td><span class="pill" style="color:' + colorFor(s.az) + '">' + esc(s.az) + '</span></td>' +
+          '<td class="num">' + s.n + '</td>' +
+          '<td><div class="share"><i style="width:' + pct + '%;background:' + colorFor(s.az) + '"></i></div></td>' +
+          '<td class="num">' + Math.round(s.totalMs / s.n) + '</td><td>' + seen + '</td></tr>';
+      }).join('');
+    }
+
+    // log
+    $('log').innerHTML = log.length ? log.map(function (e) {
+      var cls = e.ok ? 'ok' : 'err';
+      return '<div><span class="small">' + clock(e.t) + '</span> <span class="' + cls + '">' + (e.ok ? e.status : 'FAIL') + '</span> ' +
+        esc(e.path) + ' &rarr; ' + esc(shortHost(e.server)) + ' (' + esc(e.az) + ') ' + e.ms + ' ms' + (e.isNew ? ' <span class="new">new server</span>' : '') + '</div>';
+    }).join('') : '<div class="small">No requests yet.</div>';
+
+    // sparkline
+    if (samples.length > 1) {
+      var max = Math.max.apply(null, samples), w = 300, h = 70, step = w / 59;
+      var pts = samples.map(function (v, i) { return (i * step).toFixed(1) + ',' + (h - 4 - (v / max) * (h - 10)).toFixed(1); }).join(' ');
+      $('spark').innerHTML = '<polyline fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke" points="' + pts + '"/>';
+      $('spark-note').textContent = 'latest ' + samples[samples.length - 1] + ' ms, highest ' + max + ' ms';
+    }
+  }
+
+  $('toggle').addEventListener('click', function () {
+    running = !running; this.textContent = running ? 'Pause' : 'Resume';
+  });
+  $('burst').addEventListener('click', burst);
+  $('speed').addEventListener('change', startTimer);
+  $('reset').addEventListener('click', function () {
+    servers = {}; zones = {}; log = []; samples = []; total = 0; errors = 0; startedAt = Date.now(); schedule();
+  });
+
+  fetch('/whoami', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
+    $('servedby').textContent = 'This page was sent by ' + shortHost(d.server) + ' in zone ' + d.az + '. Each probe below may be answered by a different server.';
+  }, function () { $('servedby').textContent = 'Could not reach /whoami.'; });
+
+  startTimer(); tick(); setInterval(schedule, 1000);
+})();
+</script>
+</body>
+</html>

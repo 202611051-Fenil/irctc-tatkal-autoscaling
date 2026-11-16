@@ -23,6 +23,8 @@ CloudWatch: avg CPU > 50% -> add instance (target tracking)
 |---|---|
 | `/health` | Load balancer health check |
 | `/tatkal` | Returns `{"status":"Tatkal Ticket Available"}` |
+| `/whoami` | Which server, zone and instance answered (used by the dashboard) |
+| `/dashboard` | Live dashboard page: requests by server and zone |
 | `/book` | ~60-100 ms of CPU work (simulates captcha/payment) so CPU actually rises |
 
 ## Run locally

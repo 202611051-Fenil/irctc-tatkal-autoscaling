@@ -86,3 +86,9 @@ Run files in `results/`: `run1_before_fix` (failed run), `run2_baseline_1server`
 
 ## 9. Clean-up (the load balancer bills every hour)
 Delete in this order: Auto Scaling Group, Load Balancer, Target Group, Launch Template.
+
+## 10. Live dashboard (added 2026-11-16)
+`/dashboard` shows which server and zone answered each request. `user-data.sh` reads the zone and instance id from the EC2
+metadata service and passes them to the container as `AZ` and `INSTANCE_ID`. To use it: push the repo, create launch template
+version 3 with the new user data, set it as the default, then replace the running servers. Servers started from version 2
+show their zone as `unknown`.
